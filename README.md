@@ -127,6 +127,28 @@ there — nothing is pushed anywhere.
 /prep-testing DEMO-123 --positive
 ```
 
+### Real tickets and pushing to Qase
+
+On a real ticket, the coordinator gathers context from Jira/Confluence (via Claude Code
+skills) and the pipeline works the same way, stopping at the review gate:
+
+```
+/prep-testing TS-1234 --mode=real
+```
+
+After you review `output/TS-1234-test-prep.md` and cut anything you do not want, push the
+accepted cases into Qase. This step is **dry-run by default** and writes only with
+`--confirm`:
+
+```
+/push-to-qase TS-1234            # shows what would be created — writes nothing
+/push-to-qase TS-1234 --confirm  # creates the cases in Qase after your review
+```
+
+`[OUT OF SCOPE]` items and unconfirmed `[ASSUMPTION]` cases are never pushed. The created
+Qase cases can then be turned into automated tests, closing the loop
+**Jira → test docs → Qase → automated tests**.
+
 ## Modes
 
 Controlled by `config/sources.json`:

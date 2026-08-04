@@ -19,7 +19,8 @@
     },
     "qase": {
       "projectCode": "DEMO",
-      "note": "Writing to Qase happens only after human review, via a separate confirmed step."
+      "baseUrl": "https://app.qase.io",
+      "note": "Writing to Qase happens only after human review, via the separate /push-to-qase step (dry-run by default, --confirm to write)."
     },
     "description": "Pulls live context from Jira/Confluence via the xp-developer-experience skills (netrc auth). Never commit real credentials or exported real data to this repo."
   }

@@ -47,20 +47,19 @@ All context lives in local fixture files. Do NOT touch any network.
 
 ### Real mode
 
-Context lives in Jira/Confluence. Use the `xp-developer-experience` skills, not raw guesses.
+**The coordinator has already gathered the raw context for you** (via the `/investigate`,
+`/jira`, and `/confluence` skills) and passed it in the prompt. You cannot call those
+skills yourself — subagents have no access to slash-command skills. So in real mode:
 
-1. Read `config/sources.json` → `real` block for base URLs, the PRODUCT project key,
-   and the RFC space/folder hints.
-2. Fetch the ticket via the `jira` skill: full description, every acceptance criterion,
-   all comments, issue links (parent/child, relates-to, blocks, is-blocked-by).
-3. Follow the parent Epic. Read its goal, scope limits, and sibling stories.
-4. Find and read the linked PRODUCT idea in the configured PRODUCT project.
-5. Find and read the RFC in the configured Confluence space/folder. Follow the link or
-   the feature name. Use the `confluence` skill (`view`, `children`, `descendants`).
-6. Follow every Confluence link found in the ticket or its comments.
+1. Do NOT attempt to fetch anything from the network or call any skill.
+2. Take the raw Jira/Confluence text the coordinator gave you (ticket description, every
+   acceptance criterion, comments, links, the Epic, the PRODUCT idea, the RFC).
+3. Structure it into the corpus below, exactly as you would for demo fixtures.
+4. If the coordinator's context references a source it could not retrieve, record it as a
+   **GAP** — do not guess its content.
 
-Least privilege: only read sources reachable from this ticket. Do not browse unrelated
-spaces. Do not write anything anywhere.
+Least privilege still holds: you only ever see what the coordinator hands you, and you
+never write anything anywhere.
 
 ## Output — the requirements corpus
 

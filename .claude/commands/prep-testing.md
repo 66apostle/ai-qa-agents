@@ -41,8 +41,26 @@ Read `config/sources.json` to determine the active mode if `--mode` is not passe
 
 ### Step 1 — Gather requirements
 
-Delegate to the **requirements-researcher** agent. Pass it the ticket ID and the active
-mode. Receive the **requirements corpus**. Do not edit it.
+The gathering path depends on the mode. Subagents cannot call slash-command skills, so in
+real mode **you (the coordinator) collect the raw context first**, then hand it to the
+researcher for structuring.
+
+**Demo mode:** delegate straight to the **requirements-researcher** agent with the ticket
+ID and `mode=demo`. It reads `fixtures/<TICKET-ID>/` itself with the Read tool.
+
+**Real mode:** collect the raw context yourself, in this order:
+1. Run the `/investigate <TICKET-ID>` skill (from the `xp-developer-experience` plugin) to
+   pull the Jira ticket, its links, related tickets, and linked Confluence pages in one
+   pass. If `/investigate` is unavailable, fall back to `/jira <TICKET-ID>` plus
+   `/confluence view <linked page>` for each linked page.
+2. Also fetch the parent Epic, the linked PRODUCT idea, and the RFC named in the ticket,
+   using `/jira` and `/confluence` as needed (base URLs, PRODUCT project, and RFC space
+   come from `config/sources.json` → `real`).
+3. Paste the raw gathered text into a prompt to the **requirements-researcher** agent with
+   `mode=real`. Instruct it to structure this already-collected context into the corpus —
+   it must NOT try to fetch anything itself, only structure what you give it.
+
+Either way, receive the **requirements corpus** and do not edit it.
 
 ### Step 2 — Design test cases
 

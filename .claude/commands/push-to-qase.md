@@ -1,0 +1,97 @@
+---
+name: push-to-qase
+description: Push human-reviewed test cases from an output report into Qase as test cases. Dry-run by default; writes only after explicit confirmation.
+argument-hint: <TICKET-ID> [--confirm] [--suite=<id>] [--code=<PROJECT>]
+user_invocable: true
+---
+
+# Push to Qase
+
+You take the **already-reviewed** test cases from a prep-testing report and create them in
+Qase. This is the write step that lives after the human-review gate. It is deliberately
+separate from `/prep-testing` so that nothing reaches Qase without a person approving it.
+
+## Safety rules (do not skip)
+
+- **Dry-run by default.** Without `--confirm`, you show exactly what WOULD be created and
+  write nothing.
+- **Never invent cases.** Only push what is in the report file. If the report is missing or
+  empty, stop and say so.
+- **`[OUT OF SCOPE]` items are never pushed.** They are suggestions for the engineer, not
+  test cases.
+- **`[ASSUMPTION]`-flagged cases:** list them separately and ask the user whether to
+  include them before writing.
+- **No deletes, no overwrites of unrelated cases.** Only create new cases, or update a case
+  when the report line already carries a Qase case `id`.
+
+## Arguments
+
+Parse `$ARGUMENTS`:
+- **`<TICKET-ID>`** (required) — locates `output/<TICKET-ID>-test-prep.md`. If empty, ask.
+- **`--confirm`** — actually write to Qase. Without it, dry-run only.
+- **`--suite=<id>`** — target Qase suite ID (optional).
+- **`--code=<PROJECT>`** — Qase project code. If omitted, read it from
+  `config/sources.json` → `real.qase.projectCode`.
+
+## Steps
+
+### Step 1 — Load the reviewed report
+
+Read `output/<TICKET-ID>-test-prep.md`. If it does not exist, tell the user to run
+`/prep-testing <TICKET-ID>` and review the output first, then stop.
+
+Parse the **Test Cases** section only. For each case extract: title, type
+(Positive/Negative/Boundary), objective, preconditions, postconditions, and the numbered
+steps (action + expected result). Ignore sections 1, 3, 4, and the out-of-scope list.
+
+### Step 2 — Confirm the Qase target
+
+Resolve the project code (`--code` or config). Call `qase_project_context` with that code
+to confirm the project exists and to see the suites tree. If `--suite` was given, verify it
+exists in that tree.
+
+If the project or suite cannot be resolved, stop and report — do not create anything.
+
+### Step 3 — Map each case to a Qase case
+
+Map the parsed fields to `qase_case_upsert` parameters:
+
+| Report field | qase_case_upsert param |
+|---|---|
+| title | `title` |
+| project code | `code` |
+| suite (from `--suite`) | `suite_id` |
+| type (Positive→ treat as functional; keep label if it maps) | `type` |
+| objective | prepend to `description` |
+| preconditions | `preconditions` |
+| postconditions | `postconditions` |
+| numbered steps | `steps` (classic): each `{action, expected_result}` |
+| — | `automation`: "is-not-automated" (these are manual, pre-automation) |
+| ticket ID + "prep-testing" | `tags` |
+
+Use `steps_type: "classic"`. Set `priority` from the case type only if the report states
+one; otherwise leave it unset.
+
+### Step 4 — Dry-run OR write
+
+**Without `--confirm` (default):** print a table of every case that would be created —
+title, type, step count, target suite. Print the exact `qase_case_upsert` payload for the
+first case as a sample. Then tell the user: "Dry run. Re-run with `--confirm` to create
+these N cases in Qase project `<CODE>`." Write nothing.
+
+**With `--confirm`:** create the cases one at a time via `qase_case_upsert`. After each,
+capture the returned case ID. If any call fails, stop, report which cases already got
+created (with their IDs), and do not retry blindly.
+
+### Step 5 — Report
+
+Print a table: case title → Qase case ID → browse link
+(`{qase.baseUrl}/case/{CODE}-{id}` — infer the Qase web URL, or just show the ID if unsure).
+State how many were created, skipped, or failed. Remind the user that `[OUT OF SCOPE]` and
+unconfirmed `[ASSUMPTION]` cases were not pushed.
+
+## After this
+
+The created Qase cases can be turned into automated WDIO/Playwright tests with the
+`create-from-qase` command in the `xp-test-ui` repo — that closes the loop
+Jira → test docs → Qase → automated tests.
