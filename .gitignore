@@ -1,0 +1,19 @@
+# Never commit real credentials or exported real data
+.env
+.env.*
+!.env.example
+*.netrc
+
+# Real-mode output may contain confidential ticket data — keep it local.
+# Demo output is safe; commit specific demo runs explicitly with `git add -f`.
+output/*
+!output/.gitkeep
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Node (only if the project later grows an SDK wrapper)
+node_modules/

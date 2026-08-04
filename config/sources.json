@@ -1,0 +1,26 @@
+{
+  "$schema": "./sources.schema.json",
+  "mode": "demo",
+  "demo": {
+    "fixturesDir": "fixtures",
+    "description": "Reads all ticket context from local fixture files. No external systems are touched. Safe to present anywhere."
+  },
+  "real": {
+    "jira": {
+      "baseUrl": "https://your-org.atlassian.net",
+      "productProject": "PRODUCT",
+      "skill": "jira"
+    },
+    "confluence": {
+      "baseUrl": "https://your-org.atlassian.net/wiki",
+      "rfcSpace": "DEV",
+      "rfcFolderHint": "RFCs",
+      "skill": "confluence"
+    },
+    "qase": {
+      "projectCode": "DEMO",
+      "note": "Writing to Qase happens only after human review, via a separate confirmed step."
+    },
+    "description": "Pulls live context from Jira/Confluence via the xp-developer-experience skills (netrc auth). Never commit real credentials or exported real data to this repo."
+  }
+}
