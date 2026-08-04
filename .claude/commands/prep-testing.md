@@ -48,17 +48,24 @@ researcher for structuring.
 **Demo mode:** delegate straight to the **requirements-researcher** agent with the ticket
 ID and `mode=demo`. It reads `fixtures/<TICKET-ID>/` itself with the Read tool.
 
-**Real mode:** collect the raw context yourself, in this order:
-1. Run the `/investigate <TICKET-ID>` skill (from the `xp-developer-experience` plugin) to
-   pull the Jira ticket, its links, related tickets, and linked Confluence pages in one
-   pass. If `/investigate` is unavailable, fall back to `/jira <TICKET-ID>` plus
-   `/confluence view <linked page>` for each linked page.
-2. Also fetch the parent Epic, the linked PRODUCT idea, and the RFC named in the ticket,
-   using `/jira` and `/confluence` as needed (base URLs, PRODUCT project, and RFC space
-   come from `config/sources.json` → `real`).
-3. Paste the raw gathered text into a prompt to the **requirements-researcher** agent with
-   `mode=real`. Instruct it to structure this already-collected context into the corpus —
-   it must NOT try to fetch anything itself, only structure what you give it.
+**Real mode:** collect the raw context yourself. Two interchangeable paths — prefer MCP
+for uniformity with the Qase step; the bundled skills are a self-contained fallback.
+
+*Primary — Atlassian MCP (`mcp__atlassian__*`):*
+1. Get the Jira ticket with `mcp__atlassian__getJiraIssue` (description, every AC,
+   comments, links). Use `mcp__atlassian__searchJiraIssuesUsingJql` for related tickets.
+2. Fetch the parent Epic and the linked PRODUCT idea the same way.
+3. Fetch the RFC and any linked docs with `mcp__atlassian__getConfluencePage` /
+   `searchConfluenceUsingCql` (RFC space and PRODUCT project come from
+   `config/sources.json` → `real`).
+
+*Fallback — bundled skills (`.claude/skills/`, auth via `~/.netrc`):*
+Run `/investigate <TICKET-ID>` for a one-pass pull, or `/jira` + `/confluence` per source.
+Use this path if the Atlassian MCP server is not approved/authenticated in this session.
+
+Then paste the raw gathered text into a prompt to the **requirements-researcher** agent
+with `mode=real`. Instruct it to structure this already-collected context into the corpus —
+it must NOT try to fetch anything itself, only structure what you give it.
 
 Either way, receive the **requirements corpus** and do not edit it.
 

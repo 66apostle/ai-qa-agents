@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "qase": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@qase/mcp-server"],
+      "env": {
+        "QASE_API_TOKEN": "${QASE_API_TOKEN}"
+      }
+    },
+    "atlassian": {
+      "type": "http",
+      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    }
+  }
+}

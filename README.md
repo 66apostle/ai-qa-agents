@@ -92,20 +92,49 @@ ai-qa-agents/
 │  ├─ agents/
 │  │  ├─ requirements-researcher.md   # Agent 2
 │  │  └─ qa-test-architect.md         # Agent 3
-│  └─ commands/
-│     └─ prep-testing.md              # Agent 1 (coordinator)
+│  ├─ commands/
+│  │  ├─ prep-testing.md              # Agent 1 (coordinator)
+│  │  └─ push-to-qase.md              # reviewed cases → Qase (dry-run by default)
+│  └─ skills/                         # self-contained data-access skills
+│     ├─ jira/                        # Jira REST via ~/.netrc (fallback path)
+│     ├─ confluence/                  # Confluence REST via ~/.netrc
+│     └─ investigate/                 # one-pass ticket context pull
 ├─ fixtures/                          # demo mode: synthetic tickets
 │  └─ DEMO-123/                       # sample ticket + Epic + PRODUCT idea + RFC
 ├─ config/
 │  └─ sources.json                    # demo | real switch
+├─ .mcp.json                          # Qase + Atlassian MCP servers
+├─ .env.example                       # QASE_API_TOKEN template (copy to .env)
 ├─ output/                            # generated reports land here (gitignored)
 ├─ docs/
 └─ README.md
 ```
 
-## Usage
+Everything the pipeline needs lives in this one folder — agents, commands, data-access
+skills, and MCP server config. Clone it and it works.
+
+## Setup
 
 Requires [Claude Code](https://claude.com/claude-code).
+
+**Demo mode needs no setup** — it reads local fixtures only.
+
+For **real mode** (live Jira/Confluence/Qase):
+
+1. Copy the env template and add your Qase token:
+   ```bash
+   cp .env.example .env      # then edit .env, set QASE_API_TOKEN
+   ```
+2. Data access uses MCP first, with a skills fallback:
+   - **Qase** — MCP server (`.mcp.json`), token from `.env`.
+   - **Jira / Confluence** — Atlassian MCP (`.mcp.json`, OAuth on first use). If MCP is
+     unavailable, the bundled skills in `.claude/skills/` are used instead; they
+     authenticate via `~/.netrc` (`machine your-org.atlassian.net`).
+3. Set your real project keys in `config/sources.json` → `real`.
+
+On first launch Claude Code asks you to approve the MCP servers — accept them.
+
+## Usage
 
 ```bash
 cd ai-qa-agents

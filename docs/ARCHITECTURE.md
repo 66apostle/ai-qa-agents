@@ -30,12 +30,29 @@ test cases from Jira tickets. Adaptations for this environment:
 3. Hardcoded org-specific project/space paths replaced with `config/sources.json` values.
 4. Added an explicit `[OUT OF SCOPE — engineer decides]` block to control estimate bloat.
 
-## Real mode & security
+## Data access — MCP first, skills fallback
 
-- Real mode reads Jira/Confluence through Claude Code skills using local credentials.
-- Least privilege: only sources reachable from the ticket are read; nothing is written.
-- Credentials and any exported real data are gitignored and must never be committed.
-- The demo mode is fully synthetic and is the only mode intended for public presentation.
+The project is self-contained: agents, commands, data-access skills, and MCP config all
+live in the repo. Access to each system:
+
+| System | Primary | Fallback | Auth |
+|---|---|---|---|
+| Qase | `qase` MCP server (`.mcp.json`) | — | `QASE_API_TOKEN` from `.env` |
+| Jira | `atlassian` MCP (`mcp__atlassian__*`) | `.claude/skills/jira`, `investigate` | MCP: OAuth · skills: `~/.netrc` |
+| Confluence | `atlassian` MCP | `.claude/skills/confluence` | same as Jira |
+
+MCP is preferred for uniformity with the Qase write step. The bundled skills make the repo
+work even where the Atlassian MCP server is not approved/authenticated (e.g. headless runs)
+— they call the REST API directly with stdlib and `~/.netrc`.
+
+## Security
+
+- Least privilege: only sources reachable from the ticket are read; `/prep-testing` writes
+  nothing; `/push-to-qase` writes only with `--confirm`.
+- **No secrets in git.** The real Qase token is injected via `${QASE_API_TOKEN}` from
+  `.env` (gitignored). `.mcp.json` contains only the variable reference, never the value.
+- `~/.netrc` and any exported real data (`output/`) are gitignored.
+- Demo mode is fully synthetic and is the only mode intended for public presentation.
 
 ## Roadmap
 
