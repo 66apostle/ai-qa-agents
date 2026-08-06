@@ -7,18 +7,18 @@
   },
   "real": {
     "jira": {
-      "baseUrl": "https://your-org.atlassian.net",
+      "baseUrl": "https://xtremepush.atlassian.net",
       "productProject": "PRODUCT",
       "skill": "jira"
     },
     "confluence": {
-      "baseUrl": "https://your-org.atlassian.net/wiki",
+      "baseUrl": "https://xtremepush.atlassian.net/wiki",
       "rfcSpace": "DEV",
       "rfcFolderHint": "RFCs",
       "skill": "confluence"
     },
     "qase": {
-      "projectCode": "DEMO",
+      "projectCode": "XP",
       "baseUrl": "https://app.qase.io",
       "note": "Writing to Qase happens only after human review, via the separate /push-to-qase step (dry-run by default, --confirm to write)."
     },
