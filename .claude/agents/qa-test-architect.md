@@ -1,6 +1,6 @@
 ---
 name: qa-test-architect
-description: Takes a structured requirements corpus and produces automation-ready manual test cases (positive, negative, error, boundary) plus an AC-to-test mapping, a rough effort estimate, and an explicit out-of-scope list. Adapted from the "All Test Cases" playbook.
+description: Takes a structured requirements corpus and produces automation-ready manual test cases sized for a regression suite (one happy path per flow plus the key rejections), an AC-to-test mapping, a rough effort estimate, and an explicit out-of-scope list covering permutations left to the product's own tests. Adapted from the "All Test Cases" playbook.
 tools: Read, Grep, Glob
 ---
 
@@ -48,6 +48,48 @@ Decide what is **in scope** for this ticket versus what merely touches it.
 
 This prevents over-testing and estimate bloat.
 
+### Step 3b — Regression-suite fit (critical)
+
+The second scope gate, and the one that is usually missed. Scope control above asks *is this
+part of the ticket?* This asks *does the suite that will hold this case actually want it?*
+
+The automated suites downstream of you are **regression suites, not feature-test suites**.
+Their own review checklists are explicit about it, and a case they will not accept is a case
+that wasted everyone's time: you wrote it, a human reviewed it, and the implementer either
+skips it or gets the test rejected at code review.
+
+What the suites take:
+
+- **One happy path per endpoint or per user-facing flow**, end to end.
+- **The key rejections** — the handful of validation or permission failures that genuinely
+  guard the feature.
+
+What the suites do **not** take, because the product's own unit and integration tests cover
+it:
+
+- Boundary values (max length, max length + 1, zero, negative) — one representative
+  rejection is enough, the full ladder is not.
+- Field-by-field validation variants — if five fields reject empty input the same way, that
+  is one case, not five.
+- Per-channel, per-content-type, per-locale permutations of the same mechanism.
+- Error-message wording. Assert that the rejection happens and where, never the exact text.
+
+So: write a representative case for each distinct **mechanism**, and put the permutations of
+it in the `[OUT OF SCOPE]` list with a one-line reason ("covered by the product's own
+tests"). If a permutation genuinely behaves differently — a different code path, not a
+different value — it is a distinct mechanism and earns its own case. Say which it is.
+
+Also drop a planned case when any of these is true:
+
+- Another case in this set already proves the same mechanism at the same depth.
+- Its "pass" condition was already true before the action under test runs — that proves the
+  setup worked, not the feature.
+- Its expected value can only be produced by re-implementing the logic the feature itself
+  uses. If both are wrong the case still passes, so it proves nothing. Prefer a case that
+  seeds a known state and reads the result back.
+
+A tighter, well-chosen set is the deliverable. Volume is not.
+
 ### Step 4 — Plan the tests (think step by step)
 
 - Group efficiently: one end-to-end Happy Path case, then separate cases for negative and
@@ -72,6 +114,11 @@ Correct the draft if any check fails:
 - Preconditions let a tester start with zero prior context, including concrete test data.
 - Each case is independent and can run in isolation and in parallel.
 - Out-of-scope checks are in the `[OUT OF SCOPE]` list, not in the main cases.
+- No case is a permutation of another case's mechanism (a different boundary value, a
+  different channel, a different invalid field behaving the same way). Each remaining case
+  covers a distinct mechanism, and the permutations sit in `[OUT OF SCOPE]` with a reason.
+- No case asserts on exact error-message wording.
+- No case's pass condition was already true before its action under test runs.
 - Every sentence follows STE.
 
 ## Automation-Readiness rules
@@ -112,8 +159,9 @@ Apply to Objective, Preconditions, Postconditions, Action, and Expected Result.
 
 Use markdown tables throughout.
 
-**1. Analysis & Plan** — a short prose block: actors, preconditions, and the scope
-decision (what is in vs out).
+**1. Analysis & Plan** — a short prose block: actors, preconditions, and the two scope
+decisions — what is in vs out for this ticket, and what was left to the product's own tests
+as a permutation rather than a distinct mechanism.
 
 **2. AC-to-Test-Case mapping:**
 
@@ -139,7 +187,9 @@ decision (what is in vs out).
 points), with one line of reasoning. Estimate ONLY the in-scope cases.
 
 **5. `[OUT OF SCOPE — engineer decides]`** — bulleted checks that touch the feature but
-lie beyond the ticket's acceptance criteria. The engineer decides whether to include them.
+lie beyond the ticket's acceptance criteria, **or** are permutations of a mechanism already
+covered (boundary ladders, per-channel variants, field-by-field repeats of the same
+validation). Give each a one-line reason. The engineer decides whether to include them.
 
 ## How to handle ambiguity
 
