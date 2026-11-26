@@ -1,0 +1,76 @@
+{
+  "description": "Template for config/targets.json. Copy it, then set each target's `root` to an absolute path on your machine. The real file is gitignored because those paths (and the repo names) are local and org-specific. The implementer agent reads a target's `stackDoc` as its contract — if your repo's conventions differ, edit the profile in docs/stacks/, not the agent.",
+  "defaultTarget": "ui-playwright",
+  "targets": {
+    "ui-playwright": {
+      "label": "UI — Playwright (TypeScript)",
+      "status": "active",
+      "root": "/absolute/path/to/your-ui-test-repo",
+      "stackDoc": "docs/stacks/ui-playwright.md",
+      "language": "typescript",
+      "framework": "@playwright/test",
+      "layout": {
+        "pageObject": "playwright/pages/<feature>.page.ts",
+        "spec": "playwright/tests/<feature>.spec.ts",
+        "data": "data/<feature>.data.ts",
+        "fixtures": "playwright/fixtures.ts",
+        "apiHelper": "utils/helpers/<feature>.js",
+        "apiHelperIndex": "utils/helpers/index.js",
+        "apiModule": "api/rest/<resource>.js"
+      },
+      "aliases": {
+        "#utils/*": "./utils/*",
+        "#data/*": "./data/*",
+        "#api/*": "./api/*"
+      },
+      "commands": {
+        "runSpec": "npx playwright test playwright/tests/<feature>.spec.ts",
+        "runHeaded": "npx playwright test playwright/tests/<feature>.spec.ts --headed",
+        "lintFix": "npm run lint:fix",
+        "formatFix": "npm run format:fix"
+      },
+      "authState": "playwright/.auth/user.json",
+      "selectorHelperCommand": "/find-selectors",
+      "notes": "Active UI target."
+    },
+    "api-mocha": {
+      "label": "API — Mocha + Chai + superagent (JavaScript, ESM)",
+      "status": "active",
+      "root": "/absolute/path/to/your-api-test-repo",
+      "stackDoc": "docs/stacks/api-mocha.md",
+      "language": "javascript",
+      "framework": "mocha",
+      "areas": ["external", "mobile", "rest", "mxa", "gamification"],
+      "layout": {
+        "spec": "tests/<area>/<resource>.spec.js",
+        "specNested": "tests/<area>/<resource>/<action>.spec.js",
+        "apiModule": "api/<area>/<resource>.js",
+        "helper": "utils/helpers/<area>/<resource>.js",
+        "helperIndex": "utils/helpers/<area>/index.js",
+        "data": "tests/data/<resource>.data.js"
+      },
+      "aliases": {
+        "#utils/*": "./utils/*",
+        "#api/*": "./api/*",
+        "#data/*": "./tests/data/*"
+      },
+      "commands": {
+        "runSpec": "npm run test -- ./tests/<area>/<resource>.spec.js",
+        "runArea": "npm run test:<area>",
+        "lintFix": "npm run lint:fix",
+        "formatFix": "npm run format:fix"
+      },
+      "endpointHelperCommand": "/find-endpoint",
+      "notes": "Active API target. HTTP goes through the repo's shared client only — never call the HTTP library directly from a spec."
+    },
+    "example-legacy": {
+      "label": "Example of a stack being retired",
+      "status": "legacy-read-only",
+      "root": "/absolute/path/to/your-ui-test-repo",
+      "layout": {
+        "spec": "legacy/tests/<feature>.spec.js"
+      },
+      "notes": "A `legacy-read-only` target is readable for reference but the implementer refuses to generate new tests for it — use this for a suite that is being ported away and deleted."
+    }
+  }
+}

@@ -9,6 +9,10 @@
 output/*
 !output/.gitkeep
 
+# Phase 3 targets point at local work repositories by absolute path.
+# Keep the real one local; the committed template is targets.example.json.
+config/targets.json
+
 # OS / editor
 .DS_Store
 *.swp
