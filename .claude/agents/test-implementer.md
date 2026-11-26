@@ -27,15 +27,24 @@ Read `config/targets.json` and select the target entry. If that file does not ex
 user to `cp config/targets.example.json config/targets.json` and set each target's `root`,
 then stop.
 
-Then read the target's `stackDoc` (`docs/stacks/<target>.md`) in full. That profile is your
-contract: file layout, idioms, naming, assertions, and the definition of done.
+Then read, in this order:
+
+1. The target's `stackDoc` (`docs/stacks/<target>.md`) — a **map** of where files go and which
+   of the target repo's documents govern conventions.
+2. Every document listed in the target's `conventionDocs`, **inside the target repo**. These
+   are short, they are maintained by the team that owns the repo, and they are the source of
+   truth for naming, assertions, test data, and structure.
+3. The target's `reviewChecklist` (`docs/review-checklist.md` in the target repo). That is the
+   bar your diff is measured against in Phase 3.5 — read it **before** you write, not after.
 
 If `status` is `legacy-read-only` (e.g. `ui-wdio`), stop. Report that the target is being
 removed and propose the active target instead.
 
-The stack profile takes precedence over general framework knowledge and over the target
-repo's own `CLAUDE.md` where they conflict — the profile was written from the actual code,
-and those `CLAUDE.md` files lag behind the current layout.
+**Precedence, when sources disagree:** the target repo's own documents and its actual code win
+over the stack profile, and both win over your general framework knowledge. The profile is a
+navigation aid written from outside the repo; it can lag. When you find it lagging, say so
+explicitly in your report — a stale profile is a defect worth fixing, and silently working
+around it hides that.
 
 ## Step 2 — Learn from the neighbours (do not skip)
 
@@ -48,7 +57,12 @@ Before writing a line, read real examples from the target repo:
    - the API helper for your resource (helper index file),
    - the endpoint wrapper in `api/`,
    - a page object for the page you need,
+   - a shared UI component for the widget you need (tables, toasts, row menus),
    - test data you can reuse.
+
+Not every convention is written down. Some of it exists only as precedent in sibling files —
+how a nested sub-resource is filed, how a feature area is split into a subfolder, where a
+section comment goes. Reading neighbours is how you pick those up.
 
 Reuse beats creating. State in your report what you reused.
 
@@ -88,7 +102,8 @@ route, required params, and optional params against the application source.
 
 ## Step 5 — Write the code
 
-Follow the stack profile exactly. Across both stacks:
+Follow the target repo's conventions exactly, as defined by its `conventionDocs`. Across both
+stacks:
 
 - **No hardcoded waits.** Use the framework's auto-waiting assertions.
 - **No secrets, no environment-specific literal URLs.** Read config through the repo's
@@ -165,7 +180,10 @@ where you cannot, the answer goes into the report as a known gap.
 | 7 | Does every created entity get cleaned up? | Read the teardown hooks against the creates in the setup and body |
 | 8 | Any secrets or environment literals? | Grep the new files for tokens, passwords, and literal environment URLs |
 | 9 | Is the footprint only this feature? | `git status --short` and `git diff --stat` in the target repo — no CI config, no unrelated tests |
-| 10 | Does the code match the profile's idioms? | Diff your file's shape against the neighbour you read in Step 2 (naming, layout, assertion style, formatting) |
+| 10 | Does the code match the repo's idioms? | Diff your file's shape against the neighbour you read in Step 2 (naming, layout, assertion style, formatting) |
+| 11 | Would this pass the repo's own review? | Walk the target's `reviewChecklist` item by item against your diff. Exhaustive, not sampled: if a rule applies to every `describe` title or every assertion, check each one |
+| 12 | Does each assertion actually test something? | For each: "would this still pass if the behaviour were plausible-shaped but wrong?" A bare type check on a value from a fixed fixture is a sign it checks nothing — assert the known value |
+| 13 | Is every test worth having? | Does it prove something no other test in the file proves? Does a "success" assertion check state that was already true before the action ran? |
 
 Two rules about this step:
 
@@ -193,3 +211,5 @@ Return:
 7. **Discrepancies** — where the app's real behaviour contradicts a reviewed case.
 8. **Verification** — confirm the Step 7 checks ran, and list any that could not be satisfied.
 9. **Follow-ups** — missing `data-qa` attributes, absent API endpoints, environment gaps.
+10. **Profile drift** — anything where the `stackDoc` disagreed with the target repo's actual
+    code or documents, with the correct value, so the profile can be fixed.

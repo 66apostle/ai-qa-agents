@@ -2,184 +2,176 @@
 
 Target repo: `xp-test-ui` · config key `ui-playwright` in `config/targets.json`.
 
-This profile is derived from the code that is actually in the repo. Follow it over any
-general Playwright advice, and over the repo's own `CLAUDE.md` where they disagree — that
-file still describes the older WDIO layout (`utils/api/helpers/`, `wdio/tests/data/`) and
-predates the Playwright migration.
+**This profile is a map, not a rulebook.** It tells you where things live and which of the
+target repo's own documents to read. The conventions themselves live in that repo, are
+maintained by the team that owns it, and are the single source of truth. Earlier versions of
+this profile copied those conventions here, and the copy went stale within one refactor — do
+not reintroduce that. If a convention needs changing, it changes in the target repo.
 
-## Files to touch for one feature
+## Read these first, in the target repo
+
+Read them in this order before writing anything. They are short.
+
+| Document | What it settles |
+|---|---|
+| `CLAUDE.md` | Repo overview, commands, directory structure, selector basics |
+| `docs/ui-architecture.md` | How a spec flows through fixtures → page objects → DOM; iframe handling; API helpers for setup/teardown; spec structure |
+| `docs/naming.md` | Files, classes, locator properties, `describe`/`test` titles, variables |
+| `docs/assertions.md` | Matcher conventions, error-message policy, toast policy, skip patterns |
+| `docs/test-data.md` | What belongs in `data/`, fixture reuse, randomisation |
+| `docs/review-checklist.md` | **The acceptance bar.** Your code is reviewed against this — read it before writing, not after |
+
+Where this profile and those documents disagree, **the target repo wins**. Report the
+disagreement so this profile gets fixed.
+
+## Where things go
+
+Verified against the repo layout. If a path here does not exist, trust the repo and flag it.
 
 | Layer | Path | Always needed? |
 |---|---|---|
-| Page object | `playwright/pages/<feature>.page.ts` | Yes |
-| Spec | `playwright/tests/<feature>.spec.ts` | Yes |
-| Test data | `data/<feature>.data.ts` | Only if the spec needs fixed values |
-| Fixture entry | `playwright/fixtures.ts` | Yes — register the page object |
-| API helper | `utils/helpers/<feature>.js` | Only for setup/teardown |
-| API module | `api/rest/<resource>.js` | Only if the endpoint wrapper is missing |
+| Page object | `pages/<feature>.page.ts` | Yes |
+| Spec | `tests/<feature>.spec.ts` (or `tests/<area>/<feature>.spec.ts`) | Yes |
+| Shared UI component | `pages/components/*.ts` | Reuse, rarely add |
+| Test data | `data/<feature>.data.ts` | Only for fixed valid values |
+| Fixture registration | `fixtures.ts` (repo root) | Yes — register the page object |
+| API helper | `utils/helpers/<feature>.ts` | Only for setup/teardown |
+| Helper barrel | `utils/helpers/index.ts` | When adding a helper file |
+| API module | `api/rest/<resource>.ts` | Only if the endpoint wrapper is missing |
 
-Never put a selector in a spec file. Never write a pure API test here — that belongs in
+The repo is **TypeScript-native throughout** — specs, page objects, data, helpers, and the
+api/utils layer are all `.ts`. Import local modules without an extension (`#utils/get-token`,
+not `#utils/get-token.js`).
+
+Path aliases from `package.json` → `imports`, use them instead of relative paths:
+
+```
+#pages/*      ./pages/*
+#components/* ./pages/components/*
+#data/*       ./data/*
+#api/*        ./api/*
+#utils/*      ./utils/*
+#fixtures     ./fixtures.ts
+```
+
+Never put a selector in a spec. Never write a pure API test here — that belongs in
 `xp-test-api`.
 
-## Page object
+## Reuse before you create
 
-Class per page. Locators are declared `readonly` at class level and assigned in the
-constructor. The page instance is `private page` on the constructor. Most pages render
-inside an iframe, so the page holds a `FrameLocator` and scopes locators to it.
+The repo already solves most of what a new spec needs. Check in this order:
+
+1. **Shared components** — `pages/components/`:
+   - `dashboard-iframe.ts` → `DASHBOARD_IFRAME`, the iframe selector constant. Use it;
+     do not hardcode an iframe selector.
+   - `iframe-table.component.ts` / `table.component.ts` → table rows, column headers, row
+     action menus, options menus.
+   - `iframe-toast.ts` → `getSuccessToast(frame)`.
+   - `label.component.ts`, `notification-bell.ts`.
+2. **An existing page object** for the page you need — extend it rather than adding a second
+   class for the same page. One page object can serve several specs.
+3. **An existing API helper** — read `utils/helpers/index.ts` first; most resources are
+   already covered. `utils/shortcuts.ts` has composed multi-step setups.
+4. **An existing data fixture** in `data/` — override fields rather than hand-writing a new
+   object.
+
+State in your report what you reused.
+
+## Read two neighbours
+
+Before writing, read the closest existing example of each file you are about to create. A
+good triple to start from: `tests/gateways.spec.ts`, `pages/gateways.page.ts`,
+`data/gateways.data.ts`. Match their shape — not every convention is written down; some of it
+only exists as precedent in sibling files.
+
+Shape at a glance (details are in the repo's docs):
 
 ```typescript
+// tests/<feature>.spec.ts
+import { test, expect } from "#fixtures";
+import * as helpers from "#utils/helpers/index";
+
+// Data
+import { gateways } from "#data/gateways.data";
+
+test.describe("Settings > Gateways", () => { /* ... */ });
+```
+
+```typescript
+// pages/<feature>.page.ts
 import { type Page, type FrameLocator, type Locator } from "@playwright/test";
-import { type GatewayCredentials } from "#data/gateways.data";
+import { DASHBOARD_IFRAME } from "#components/dashboard-iframe";
+import { IframeTableComponent } from "#components/iframe-table.component";
+import { getSuccessToast } from "#components/iframe-toast";
 
 export class GatewaysPage {
 	private frame: FrameLocator;
-	readonly successToast: Locator;
-	readonly saveButton: Locator;
-	readonly tableRows: Locator;
+	readonly table: IframeTableComponent;
+	readonly saveBtn: Locator;
 
 	constructor(private page: Page) {
-		this.frame = page.frameLocator("iframe.h-full.w-full");
-		this.successToast = this.frame.locator(".el-message--success");
-		this.saveButton = this.frame.locator(".save-button");
-		this.tableRows = this.frame.locator(".el-table__row");
-	}
-
-	async selectGateway(name: string) {
-		await this.selectGatewayDropdown.click();
-		await this.frame.locator(".el-select-dropdown__item").filter({ hasText: name }).click();
-	}
-
-	async open() {
-		await this.page.goto(`/projects/${process.env.PROJECTID}/embed#/channel/config/index`);
+		this.frame = page.frameLocator(DASHBOARD_IFRAME);
+		this.table = new IframeTableComponent(this.frame);
+		this.saveBtn = this.frame.locator("[data-qa='save-button']");
 	}
 }
 ```
 
-Rules:
-- Every page object gets an `async open()` that `page.goto()`s its own URL. Embedded pages
-  use the `/projects/${process.env.PROJECTID}/embed#/<route>` shape.
-- Multi-step interactions become methods on the page object (`deleteGateway()`,
-  `fillCredentials()`), so the spec reads as intent, not clicks.
-- To reach one row/item, expose the collection locator and filter by text in a method —
-  do not build a long descendant chain.
-- The app is Vue + Element Plus. Dropdown option lists (`.el-select-dropdown__item`) render
-  as portals **inside the iframe document** — scope them to `this.frame`, not `this.page`.
+Two things the docs assume you already know:
 
-## Selector priority
+- **Clickable locators end in `Btn`, never `Button`** (the checklist rejects `...Button`).
+- **Element Plus dropdown option lists** (`.el-select-dropdown__item`) render as portals
+  inside the iframe document — scope them to `this.frame`, and filter shared-portal items
+  with `.filter({ visible: true })`.
+
+## Fixtures and auth
+
+Register each page object in `fixtures.ts`, alphabetically, in both the type block and the
+implementation block. If a page must be open and settled before the test body, do that in the
+fixture (`open()` plus a `waitFor()` on a landmark element).
+
+Authentication is already solved: the `setup` project runs `tests/auth.setup.ts`, and the
+`chromium` project loads `storageState` from `./.auth/user.json`. **Never write a login step
+into a feature spec.**
+
+`fullyParallel` is `false` — tests within a file run in order. Still keep each test
+independent enough to run alone.
+
+## Selectors
+
+Priority order and the full rationale are in the repo's `CLAUDE.md` and in its
+`/find-ui-selectors` command. The short version:
 
 1. `[data-qa='...']` — always prefer
 2. `[name='...']` / `[id='...']` — form fields without data-qa
-3. CSS class — only if unique and stable (never generated/hashed classes)
-4. `[aria-label='...']` — icon buttons, unlabelled controls
-5. `[placeholder='...']` — text inputs with nothing better
+3. A unique, stable CSS class (never generated/hashed)
+4. One parent class + one element class, when a single class is not unique
+5. `[aria-label='...']` — icon buttons, unlabelled controls
+6. `[placeholder='...']` — text inputs with nothing better
 
-Visible text may locate an element while you inspect it, but must not end up in the final
-selector. If nothing stable exists, do not invent a selector: flag the element and
-recommend asking dev for a `data-qa` attribute.
+**Never select static UI chrome by its visible text** — `getByRole('button', { name })`,
+`getByText(...)`. That text is translated in other locales and the selector silently stops
+matching. Text may locate an element while you inspect it, but must not survive into the
+selector.
 
-To get real selectors instead of guessing, run `/find-selectors <url> <element description>`
-from this repo. It drives a live browser through the Playwright MCP server and reuses the
-target repo's `playwright/.auth/user.json`. (The target repo has its own equivalent,
-`/find-ui-selectors-playwright`, if you are working inside it directly — same conventions.)
+The one exception: filtering a collection down to an item identified by data the test itself
+created, or by a known fixed value — `tableRows.filter({ hasText: name })`. Prefer that over
+a long chain of descendant combinators.
 
-Naming: camelCase, suffixed with the element type — `campaignNameInput`, `deleteButton`,
-`channelIosPushCheckbox`, plural for collections (`tableRows`).
-
-## Fixtures
-
-Register each page object in `playwright/fixtures.ts`, alphabetically. If a page must be
-open and settled before the test body, do it in the fixture — `open()` plus a `waitFor()`
-on a landmark element.
-
-```typescript
-retentionPage: async ({ page }, use) => {
-	const p = new RetentionPage(page);
-	await p.open();
-	await p.policiesTab.waitFor();
-	await use(p);
-},
-```
-
-Specs import from the local fixtures module, never from `@playwright/test` directly:
-
-```typescript
-import { test, expect } from "../fixtures";
-```
-
-Authentication is already solved: the `setup` project runs `auth.setup.ts` and the
-`chromium` project loads `storageState` from `playwright/.auth/user.json`. Do not write a
-login step into a feature spec.
-
-## Spec
-
-```typescript
-import { test, expect } from "../fixtures";
-import * as helpers from "#utils/helpers/index";
-import { gateways } from "#data/gateways.data";
-
-test.describe("Settings > Gateways", () => {
-	test.beforeAll(async () => { /* API setup */ });
-	test.afterAll(async () => { /* API teardown */ });
-
-	test("creates the gateway", async ({ gatewaysPage }) => {
-		await gatewaysPage.addChannelConfigButton.click();
-		await gatewaysPage.saveButton.click();
-		await expect(gatewaysPage.successToast).toBeVisible();
-	});
-});
-```
-
-Rules:
-- `describe` title mirrors the UI path (`"Settings > Gateways"`). Test titles are lowercase
-  verb phrases (`"creates the gateway"`) and should map recognisably onto the Qase case.
-- Web-first assertions only: `await expect(locator).toBeVisible()`, `.toHaveText()`,
-  `.toHaveCount()`. Never `waitForTimeout`. Never assert on a value you read into a
-  variable first when a locator assertion would do.
-- Set up and tear down through API helpers, not through the UI.
-- Data-driven cases use a `for (const x of data)` loop around `test.describe`.
-- `fullyParallel` is `false` in this repo — tests within a file run in order. Still keep
-  each test independent enough to run alone.
-
-## API helpers (setup/teardown)
-
-Helpers live in `utils/helpers/<feature>.js` (plain JS, ESM), are re-exported from
-`utils/helpers/index.js` as `export * as camelCaseName from "./file.js";`, and are consumed
-as `helpers.channelConfigs.getChannelConfig(...)`.
-
-A helper takes a single destructured object, validates params, calls the `api/` wrapper,
-throws on an unexpected status code, and returns the useful part of the body:
-
-```javascript
-import { getRestAccessToken } from "#utils/get-token.js";
-import { validateParams } from "#utils/parameter-validator.js";
-import * as channelConfigs from "#api/rest/channel-configs.js";
-
-const headers = { Authorization: `Bearer ${await getRestAccessToken()}` };
-
-export async function getChannelConfig({ channelConfig }) {
-	validateParams({ channelConfig });
-	const response = await channelConfigs.getChannelConfigs({ headers, queryParams: { channel: channelConfig } });
-	if (response.statusCode !== 200) {
-		throw new Error(`Error getting channel, status code: '${response.statusCode}'`);
-	}
-	return response.body.find((channel) => channel.channel === channelConfig) || null;
-}
-```
-
-Create a helper only if setup/teardown genuinely needs it. Check `utils/helpers/index.js`
-first — most resources are already covered.
-
-## Test data
-
-`data/<feature>.data.ts`. Export an `interface` for the shape plus named consts, and an
-array when the spec iterates. Keep only valid data here; pass invalid data inline in the
-negative test. Never commit real credentials — use obvious dummies
-(`"dummy_password"`).
+To get real values rather than guesses: read them from an existing page object, or run
+`/find-selectors <url> <element>` from this repo. If no stable selector exists for a required
+static element, **do not invent one** — flag it and recommend requesting a `data-qa` attribute
+from dev.
 
 ## Definition of done
 
-1. `npx playwright test playwright/tests/<feature>.spec.ts` passes locally.
-2. `npm run lint:fix && npm run format:fix` run clean.
-3. Tabs for indentation, tab width 4 (Prettier config in repo).
-4. No `.only`, no skipped test without a documented reason and an eslint-disable comment.
+1. `npx playwright test tests/<feature>.spec.ts` passes locally.
+2. `npm run lint:fix`, `npm run format:fix`, and `npm run type:check` all run clean.
+   **`type:check` is not optional here** — the PR pipeline runs `tsc --noEmit`.
+3. Tabs, tab width 4 (Prettier config in repo).
+4. No `.only`. No skipped test without a reason string and the
+   `// eslint-disable-next-line playwright/no-skipped-test` comment immediately above.
 5. No secrets, no hardcoded environment URLs — `baseURL` comes from `playwright.config.ts`.
+6. No comment referencing the current ticket number ("see XP-1234") — that belongs in the PR
+   description, since it rots once the ticket closes.
+7. Your diff survives a read of `docs/review-checklist.md`, item by item.
