@@ -215,12 +215,14 @@ For **Phase 3** (implementing tests):
    ```bash
    cp config/targets.example.json config/targets.json   # then set each target's "root"
    ```
-   `config/targets.json` is gitignored — it holds absolute local paths. The stack profiles in
-   `docs/stacks/` describe those repos' conventions; if your repos differ, edit the profile,
-   not the agent.
+   `config/targets.json` is gitignored — it holds absolute local paths. Each target entry also
+   names the documents in that repo which define its conventions (`conventionDocs`,
+   `reviewChecklist`); the profiles in `docs/stacks/` only map the layout and point at them.
+   If your repos differ, edit the target entry and the profile, not the agent.
 5. The target repo must be runnable on its own first: dependencies installed and its `.env`
-   configured (the UI target also needs its stored auth state, e.g.
-   `playwright/.auth/user.json`). Phase 3 runs the suite there, it does not bootstrap it.
+   configured (the UI target also needs its stored auth state, at the path in the target's
+   `authState`, e.g. `.auth/user.json`). Phase 3 runs the suite there, it does not bootstrap
+   it.
 
 On first launch Claude Code asks you to approve the MCP servers — accept them. The
 `playwright` server is only needed for live selector discovery (`/find-selectors`).
