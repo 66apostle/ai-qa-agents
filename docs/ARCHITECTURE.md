@@ -6,10 +6,11 @@
 |---|---|---|---|---|
 | — | `qa-flow` command (Coordinator) | ticket ID, mode, target | orchestration + gates | Never writes to external systems; never commits |
 | 1 | `requirements-researcher` agent | ticket ID, mode | requirements corpus | Extracts only; marks GAP/CONFLICT; never invents |
-| 2 | `qa-test-architect` agent | requirements corpus | test cases, AC map, estimate, out-of-scope | Automation-ready, STE, scope-controlled |
+| 2 | `qa-test-architect` agent | requirements corpus | test cases, AC map, estimate, out-of-scope | Automation-ready, STE, sized for a regression suite |
 | — | **Gate 1** — human review | full report | accepted cases | Hard stop before Qase push or any code |
-| 3 | `test-implementer` agent | accepted cases + target key | test code in the target repo, run results | Follows the stack profile; never weakens an assertion |
-| — | **Gate 2** — human review | unstaged diff + report | committed tests | Hard stop; the human commits |
+| 3 | `test-implementer` agent | accepted cases + target key | test code in the target repo, run results | Follows the target repo's conventions; never weakens an assertion |
+| 3.5 | `test-reviewer` agent | the Phase 3 diff + accepted cases | findings: blocking / worth fixing / questions | Reports against the target repo's own checklist; never fixes unasked |
+| — | **Gate 2** — human review | unstaged diff + findings | committed tests | Hard stop; the human commits |
 
 `prep-testing` remains as a narrower entry point covering stages 1–2 only, for when the
 deliverable is documentation rather than code.
@@ -36,10 +37,23 @@ Phase 3 could have been a prompt describing a framework. It is not, for two reas
 **Framework knowledge is not repo knowledge.** Generic Playwright advice produces code that
 passes review nowhere: it misses that pages here live behind an iframe, that page objects
 expose `readonly` locators assigned in the constructor, that fixtures pre-open the page, that
-setup goes through API helpers re-exported from an index file. Each profile in `docs/stacks/`
-is written *from the target repo's actual code* and is the implementer's contract — it
-outranks both general framework knowledge and the target repo's own `CLAUDE.md`, which tends
-to lag behind a migration in progress.
+setup goes through API helpers re-exported from an index file. A profile in `docs/stacks/`
+carries that local knowledge.
+
+**But a profile must not own the conventions.** The first version of each profile copied the
+target repo's naming, assertion and layout rules in full, and instructed the implementer to
+trust the copy over the repo's own `CLAUDE.md` — which was correct at the time, because those
+files lagged behind a migration in progress. Both halves then rotted: the repos documented
+their conventions properly in `docs/`, and the UI repo moved its tests, went
+TypeScript-native and renamed its locator suffix, while the profile still described the old
+layout. An agent following it would have written code that no longer compiles against the
+repo.
+
+So the profile is now a **map**: where files go, how to run them, and which of the target
+repo's documents (`conventionDocs`, `reviewChecklist` in `config/targets.json`) define the
+rules. Precedence is inverted — the repo's docs and its actual code win, and profile drift is
+a finding the implementer has to report. Conventions live with the team that maintains them;
+this repo keeps only the navigation.
 
 **A hardcoded stack rots.** The first draft of this phase assumed "Playwright for UI,
 WebdriverIO for API." Neither half was true: WDIO was the *UI* framework being ported away
@@ -49,6 +63,40 @@ profile, and adding a stack is a new file — neither touches the agent.
 
 Targets carry a `status`. A `legacy-read-only` target (`ui-wdio`) is readable for reference
 but refuses generation, so the pipeline cannot add tests to a suite that is being deleted.
+
+## Why a separate review phase
+
+Phase 3 already self-checks before reporting, so Phase 3.5 looks redundant until you ask what
+each one can see.
+
+The implementer checks **its own intent**: did I do what I set out to do, did I weaken
+anything, did I run the suite after my last edit. That catches shortcuts, and it is why those
+checks stay. What it cannot do is judge its own output against a standard it just spent an
+hour internalising — the same context that produced the code is the worst place to evaluate it.
+A test that is self-consistent, passes, and follows every rule the agent remembers can still
+be the wrong test.
+
+So the reviewer starts from the other end: from the target repo's `docs/review-checklist.md`
+and the approved cases, not from the code. Three things only it can catch:
+
+- **An assertion bent to match the application.** When the app and an approved case disagree,
+  that is a bug or a defective case, and a human decides which. An implementer that adjusts
+  the expectation produces a green suite and destroys the finding. The reviewer compares code
+  back to cases, so the adjustment shows up as a discrepancy rather than a success.
+- **A test not worth having.** Duplicated coverage, a success assertion on state that was
+  already true before the action ran, expected values derived by re-implementing the logic
+  under test. Each passes, each proves nothing.
+- **Scope creep.** Extra tests invented during implementation are not in the approved set and
+  need a human decision even when they are good.
+
+It also pays for itself outside the pipeline: `/review-tests` runs standalone on a hand-written
+branch or a colleague's PR, because the checklist it applies belongs to the repo, not to this
+project.
+
+Two guarantees keep it honest. It **reports and does not fix** unless asked, so a judgement
+call reaches the human instead of being quietly resolved. And the coordinator may hand
+mechanical findings back to the implementer **once** — a second round of findings means the
+human should be looking, not the loop.
 
 ## Provenance of Phase 3
 
@@ -61,7 +109,7 @@ name what its previous hypothesis assumed and what the new evidence disproves. W
 model retries variations of the same guess and then reports "flaky". Two attempts in the same
 category with no new evidence is defined as a wrong category, not a reason for a third try.
 
-**Kept — Chain of Verification (Step 7).** A ten-question self-check, each question paired
+**Kept — Chain of Verification (Step 7).** A thirteen-question self-check, each question paired
 with a command or a file read that produces evidence, run before the report. It exists because
 the failure mode of an implementation agent is not writing bad code — it is *claiming* the
 suite passes when the last edit came after the last run, or quietly relaxing a matcher. The
@@ -137,10 +185,15 @@ work repository. Constraints:
 - **Confidentiality.** Real-mode reports in `output/` may quote internal tickets and stay
   gitignored. Generated tests live in the work repo and are never copied back here — the
   public artefact is the pipeline and the demo fixture, never real data.
+- **Phase 3.5 is read-only** (`Read`, `Grep`, `Glob`, `Bash` for git inspection). It cannot
+  edit the code it reviews, so a review can never silently become a rewrite. `--fix` on
+  `/review-tests` is handled by the coordinator, for mechanical findings only.
 
 ## Roadmap
 
 - Regression-coverage analysis for changed areas.
+- A profile-drift check that compares `docs/stacks/` against each target repo on demand,
+  rather than only when an agent trips over it.
 - Bug-report drafting from failed runs.
 - Additional target profiles as stacks appear.
 - Optional thin SDK/CLI wrapper once the prompt logic stabilizes.

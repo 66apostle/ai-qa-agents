@@ -56,10 +56,11 @@ test design and another after implementation.
    ┌──────────────────────────────┐
    │  Phase 2: QA Test Design      │  → test cases + estimate
    │  Architect                    │    + out-of-scope list
-   │  • positive/negative/error/   │
-   │    boundary cases             │
+   │  • one happy path per flow +  │
+   │    the key rejections         │
    │  • AC-to-test mapping         │
-   │  • scope control (no bloat)   │
+   │  • two scope gates (ticket,   │
+   │    then regression-suite fit) │
    │  • automation-ready, STE      │
    └───────────────┬──────────────┘
                    │
@@ -72,26 +73,42 @@ test design and another after implementation.
                    ▼
    ┌──────────────────────────────┐
    │  Phase 3: Test Implementer    │  → page objects, specs,
-   │  • reads the target's stack   │    helpers, test data
-   │    profile & existing code    │
+   │  • reads the target repo's     │    helpers, test data
+   │    own docs & existing code   │
    │  • writes the tests           │
    │  • runs them, fixes failures  │
    │  • never weakens assertions   │
    └───────────────┬──────────────┘
                    │
                    ▼
+   ┌──────────────────────────────┐
+   │  Phase 3.5: Test Reviewer     │  → findings: blocking /
+   │  • the target repo's own       │    worth fixing / questions
+   │    review checklist, walked   │
+   │    item by item               │
+   │  • coverage vs the approved   │
+   │    cases                      │
+   │  • reports, does not fix      │
+   └───────────────┬──────────────┘
+                   │
+                   ▼
    ╔══════════════════════════════╗
-   ║  GATE 2 — human review        ║  read the diff, then commit
-   ║  unstaged diff in target repo ║  (the agent never commits)
+   ║  GATE 2 — human review        ║  read the diff + findings,
+   ║  unstaged diff in target repo ║  then commit (never the agent)
    ╚══════════════════════════════╝
 ```
 
 ### Targets and stack profiles
 
 Phase 3 writes into a **target repository**, not into this one. Each target is described by
-an entry in `config/targets.json` plus a **stack profile** in `docs/stacks/` — a document
-derived from the target repo's actual code that specifies the file layout, idioms, naming,
-assertion style, and definition of done.
+an entry in `config/targets.json` plus a **stack profile** in `docs/stacks/`.
+
+The profile is a **map, not a rulebook**: where files go, which commands run the result, and
+which of the target repo's own documents define its conventions (`conventionDocs` and
+`reviewChecklist` in the target entry). Those documents are the source of truth — they are
+maintained by the team that owns the repo, and a copy kept here goes stale within one
+refactor. When the profile and the repo disagree, the repo wins and the drift is reported as
+a finding.
 
 | Target | Stack | Role |
 |---|---|---|
@@ -107,9 +124,11 @@ itself stays unchanged.
 - **Separation of concerns.** The researcher *only extracts* and the architect *only
   designs*. Keeping gathering and interpretation apart preserves the source of truth and
   makes hallucinated requirements far less likely.
-- **Scope control.** An LLM tends to test *everything adjacent* to a change, which inflates
-  estimates. Agent 3 is instructed to test the change itself and push everything else into
-  an explicit `[OUT OF SCOPE — engineer decides]` list.
+- **Scope control, twice.** An LLM tends to test *everything adjacent* to a change, which
+  inflates estimates. Agent 3 first keeps to the ticket, then checks each case against what a
+  regression suite actually accepts — one happy path per flow plus the key rejections.
+  Boundary ladders and per-channel permutations go into an explicit
+  `[OUT OF SCOPE — engineer decides]` list with a reason.
 - **Gaps as a first-class output.** Contradictions and missing docs are reported, not
   silently resolved — often the most valuable result, because they surface before code is
   written.
@@ -119,9 +138,13 @@ itself stays unchanged.
   results, and ASD-STE100 Simplified Technical English, so they convert cleanly into
   automated tests.
 - **Stack profiles instead of a mega-prompt.** The implementer agent holds no framework
-  opinions of its own; it loads a profile written from the target repo's real code. That
-  keeps generated tests idiomatic and makes a new stack a config change rather than a prompt
-  rewrite.
+  opinions of its own; it loads a profile that maps the target repo's layout and points at
+  that repo's own convention docs. Conventions stay where their owners maintain them, and a
+  new stack is a config change rather than a prompt rewrite.
+- **Generated code gets reviewed before you see it.** Phase 3.5 walks the target repo's own
+  review checklist against the diff, item by item, and checks the tests back against the
+  approved cases — including whether an assertion was quietly bent to match the app's
+  behaviour, which would have destroyed a finding meant for you.
 - **A failing test is a finding, not an obstacle.** The implementer diagnoses failures and
   fixes causes, but never weakens an assertion or deletes coverage to get green. Where the
   app contradicts a reviewed case, it reports the discrepancy for a human to judge.
@@ -134,12 +157,14 @@ ai-qa-agents/
 │  ├─ agents/
 │  │  ├─ requirements-researcher.md   # Phase 1
 │  │  ├─ qa-test-architect.md         # Phase 2
-│  │  └─ test-implementer.md          # Phase 3
+│  │  ├─ test-implementer.md          # Phase 3
+│  │  └─ test-reviewer.md             # Phase 3.5
 │  ├─ commands/
-│  │  ├─ qa-flow.md                   # full pipeline coordinator (all 3 phases)
+│  │  ├─ qa-flow.md                   # full pipeline coordinator (all phases)
 │  │  ├─ prep-testing.md              # Phases 1–2 only (docs, no code)
 │  │  ├─ push-to-qase.md              # reviewed cases → Qase (dry-run by default)
-│  │  ├─ find-selectors.md            # live-browser selector discovery (Playwright MCP)
+│  │  ├─ review-tests.md              # Phase 3.5, or standalone on any branch
+│  │  ├─ find-selectors.md            # live-browser selector discovery
 │  │  └─ find-endpoint.md             # endpoint lookup in the application source
 │  └─ skills/                         # self-contained data-access skills
 │     ├─ jira/                        # Jira REST via ~/.netrc (fallback path)
@@ -153,7 +178,7 @@ ai-qa-agents/
 │  └─ targets.json                    # target repos for Phase 3 (gitignored: local paths)
 ├─ docs/
 │  ├─ ARCHITECTURE.md
-│  └─ stacks/                         # stack profiles (the implementer's contract)
+│  └─ stacks/                         # stack profiles: layout maps, not rulebooks
 │     ├─ ui-playwright.md
 │     └─ api-mocha.md
 ├─ .mcp.json                          # Qase + Atlassian + Playwright MCP servers
@@ -254,11 +279,21 @@ Review `output/TS-1234-test-prep.md` and cut anything you do not want. Then, ind
 /qa-flow TS-1234 --from=implement --target=api-mocha --cases=1,3
 ```
 
-The implementer reads the target's stack profile, studies the neighbouring code, writes the
-page objects / specs / helpers / data, runs the suite, and fixes what it broke. It stops at
-**Gate 2** with an unstaged diff in the target repo and a report: files touched, what it
-reused, case→test mapping, run results, cases it could not automate, and any place the app
-contradicts a reviewed case. Committing is your call.
+The implementer reads the target repo's conventions, studies the neighbouring code, writes
+the page objects / specs / helpers / data, runs the suite, and fixes what it broke. Phase 3.5
+then reviews the diff against that repo's own review checklist. It stops at **Gate 2** with an
+unstaged diff and a report: files touched, what it reused, case→test mapping, run results,
+cases it could not automate, any place the app contradicts a reviewed case, and the review
+findings split into blocking / worth fixing / questions. Committing is your call.
+
+To review code that did not come out of this pipeline — something you wrote by hand, or a
+colleague's branch — run the reviewer on its own:
+
+```
+/review-tests --target=ui-playwright                 # the current working tree
+/review-tests --target=api-mocha --base=develop      # a branch diff
+/review-tests TS-1234 --target=ui-playwright         # also checks coverage vs the cases
+```
 
 That closes the loop **Jira → test docs → Qase → automated tests**.
 
