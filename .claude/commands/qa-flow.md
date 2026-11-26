@@ -1,7 +1,7 @@
 ---
 name: qa-flow
 description: End-to-end QA pipeline for one ticket — gather requirements, design test cases, push to Qase after review, then implement automated tests in the target repo. Two human review gates; nothing is committed automatically.
-argument-hint: <TICKET-ID> [--target=ui-playwright|api-mocha] [--mode=demo|real] [--positive] [--from=prep|implement] [--cases=1,3]
+argument-hint: <TICKET-ID> [--target=ui-playwright|api-mocha] [--mode=demo|real] [--positive] [--from=prep|implement|review] [--cases=1,3]
 user_invocable: true
 ---
 
@@ -27,7 +27,10 @@ Jira · Confluence · PRODUCT · fixtures
   Phase 3  test-implementer          →  automated tests in the target repo
         │                                (writes files, runs the suite)
         ▼
-  ═══ GATE 2 — human reviews the diff, then commits ═══
+  Phase 3.5  test-reviewer           →  findings against the target repo's
+        │                                own review checklist
+        ▼
+  ═══ GATE 2 — human reviews the diff + findings, then commits ═══
 ```
 
 Both gates are hard stops. You never commit, push, or open a pull request.
@@ -40,9 +43,10 @@ Parse `$ARGUMENTS`:
   and state your reasoning.
 - **`--mode=demo|real`** — overrides `config/sources.json`. Default comes from that file.
 - **`--positive`** — fast mode: Happy Path case only. For small tickets.
-- **`--from=prep|implement`** — start point. `prep` (default) runs the full pipeline.
+- **`--from=prep|implement|review`** — start point. `prep` (default) runs the full pipeline.
   `implement` skips Phases 1–2 and reads the existing reviewed report from
-  `output/<TICKET-ID>-test-prep.md` — use this after Gate 1.
+  `output/<TICKET-ID>-test-prep.md` — use this after Gate 1. `review` runs Phase 3.5 only,
+  against whatever is already in the target repo's working tree.
 - **`--cases=1,3`** — implement only these case numbers in Phase 3.
 
 ### Inferring the target
@@ -128,7 +132,28 @@ Runs only with `--from=implement` (or an explicit instruction to continue past G
    extracted cases (verbatim), and `--cases` if given. Instruct it to read the target's
    `stackDoc` and study existing files in the target repo before writing.
 6. Receive its report: files touched, reused plumbing, case→test mapping, run results,
-   non-automatable cases, discrepancies.
+   non-automatable cases, discrepancies, and any stack-profile drift it found.
+
+## Phase 3.5 — Review the generated code
+
+Runs automatically after Phase 3, and on its own with `--from=review`. Do not skip it because
+the suite went green — a passing test can still be the wrong test.
+
+Delegate to the **test-reviewer** agent with: the target key, the files Phase 3 touched, and
+the **Test Cases** section from the report verbatim so it can check coverage against intent.
+
+It reviews against the target repo's own `docs/review-checklist.md` and `conventionDocs`, not
+against a copy kept here. Receive its findings and pass them through to Gate 2 unchanged — do
+not soften a blocking finding into a suggestion.
+
+If the reviewer flags an assertion that was bent to match the application's behaviour, treat
+that as the most important line in the report. That is a discrepancy that was supposed to
+reach a human.
+
+You may re-delegate to **test-implementer** once to fix findings the reviewer marked as
+mechanical and unambiguous, then re-run Phase 3.5 to confirm. Anything requiring judgement
+goes to the human instead. Never loop more than once — a second round of findings means the
+human should look.
 
 ## Gate 2 — STOP
 
@@ -138,7 +163,12 @@ Show the user:
 - the run command and its pass/fail result,
 - any failing test with its diagnosis,
 - cases that could not be automated, and why,
-- any place where the app's real behaviour contradicts a reviewed case.
+- any place where the app's real behaviour contradicts a reviewed case,
+- the Phase 3.5 findings, split into blocking / worth fixing / questions,
+- any stack-profile drift worth fixing in `docs/stacks/`.
+
+If Phase 3.5 raised anything blocking, say that plainly at the top of the
+summary rather than burying it under the green run result.
 
 Then run `git status --short` and `git diff --stat` in the target repo so the user sees the
 exact footprint, and **STOP**.
