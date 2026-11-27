@@ -4,6 +4,14 @@ Cowork version of https://github.com/66apostle/ai-qa-agents: a ticket goes in, a
 requirements corpus, regression-ready test cases, gap questions, then (after your review)
 automated tests in your test repo.
 
+## Install
+
+1. In the Claude desktop app, start a Cowork task.
+2. Drag `ai-qa-agents.plugin` (one folder up) into the chat and press **Install**.
+3. After editing this source, run `../build.sh` and install the new file.
+
+See the "Using it in Claude Cowork" section of the project README for full usage.
+
 ## Skills
 
 | Skill | What it does |

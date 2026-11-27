@@ -184,6 +184,10 @@ ai-qa-agents/
 ├─ .mcp.json                          # Qase + Atlassian + Playwright MCP servers
 ├─ .env.example                       # QASE_API_TOKEN template (copy to .env)
 ├─ output/                            # generated reports land here (gitignored)
+├─ cowork-plugin/                     # the same pipeline packaged for Claude Cowork
+│  ├─ ai-qa-agents/                   # plugin source (skills + shared playbooks)
+│  ├─ ai-qa-agents.plugin             # installable build
+│  └─ build.sh                        # rebuilds the .plugin from source
 └─ README.md
 ```
 
@@ -298,6 +302,71 @@ colleague's branch — run the reviewer on its own:
 ```
 
 That closes the loop **Jira → test docs → Qase → automated tests**.
+
+## Using it in Claude Cowork (desktop app)
+
+The same pipeline is packaged as a **Cowork plugin** in `cowork-plugin/`, so you can run it
+from the Claude desktop app without Claude Code, a terminal, `.env` or `~/.netrc`. It uses the
+connectors you already have in Cowork (Atlassian, Qase) and the same agent prompts, gates and
+rules as the Claude Code version.
+
+### Install
+
+1. Open the Claude desktop app and start a Cowork task.
+2. Drag `cowork-plugin/ai-qa-agents.plugin` into the chat (or attach it).
+3. Press **Install** on the plugin card. The skills appear under `/` in every new Cowork task.
+
+To update after editing the source, rebuild and install again:
+
+```bash
+./cowork-plugin/build.sh      # writes cowork-plugin/ai-qa-agents.plugin
+```
+
+Bump `version` in `cowork-plugin/ai-qa-agents/.claude-plugin/plugin.json` when you do.
+
+### What it needs
+
+| Need | Why | How |
+|---|---|---|
+| This folder connected | Reports go to `output/`; `config/sources.json` and `config/targets.json` are read from here | Approve the folder prompt on first run (it shows on your Mac) |
+| Atlassian connector | Reads the ticket, Epic, PRODUCT idea, RFC (read-only) | Cowork → Connectors → Atlassian |
+| Qase connector | `/push-to-qase` only | Cowork → Connectors → Qase |
+| Test repo folders | Phase 3 / review — writes and runs tests there | Approve the folder prompt when asked |
+
+The folder path is set in `cowork-plugin/ai-qa-agents/shared/cowork-environment.md`
+(`/Users/66apostle/Документы/ai-qa-agents`). Teammates should change it to their own path
+and rebuild.
+
+### Use
+
+Type `/` in a Cowork task and pick a skill, or ask in plain words ("write test cases for
+TS-1234").
+
+| Skill | What it does |
+|---|---|
+| `/qa-flow TS-1234` | Phases 1–2: report saved to `output/TS-1234-test-prep.md`, stops at **Gate 1** |
+| `/qa-flow TS-1234 --positive` | Same, Happy Path only (small tickets) |
+| `/prep-testing TS-1234` | Report only, never code |
+| `/push-to-qase TS-1234` | Dry run; reply "confirm" to create the cases in Qase |
+| `/qa-flow TS-1234 --from=implement --target=ui-playwright` | Phase 3 + 3.5: writes, runs and reviews the tests, stops at **Gate 2** with an unstaged diff |
+| `/qa-flow TS-1234 --from=implement --target=api-mocha --cases=1,3` | Only the listed cases, API repo |
+| `/review-tests --target=ui-playwright` | Review any working tree or branch against the repo's checklist |
+| `/find-selectors <page> <element>` | Real selectors from the live dashboard |
+| `/find-endpoint campaigns/{id}/snapshot` | Route, method and params from the XP / MXA source |
+| `/qa-flow DEMO-123` | Demo with the synthetic ticket — no connectors needed |
+
+Typical flow: `/qa-flow TS-1234` → review and edit the report → optional `/push-to-qase` →
+`/qa-flow TS-1234 --from=implement --target=…` → read the diff and findings → commit yourself.
+
+### Differences from the Claude Code version
+
+- Phases run in one conversation (the agent prompts in `cowork-plugin/ai-qa-agents/shared/agents/`
+  are followed in turn) instead of as separate subagents.
+- Tests run in Cowork's Linux VM on your Mac. If macOS-installed `node_modules` (Playwright
+  browsers, esbuild) do not run there, the plugin does not reinstall anything in your repo — it
+  gives you the command to run in your terminal and continues from the pasted output.
+- The plugin keeps its own copy of the agent prompts. After changing `.claude/agents/*.md`,
+  copy them into `cowork-plugin/ai-qa-agents/shared/agents/` and rebuild.
 
 ## Modes
 
