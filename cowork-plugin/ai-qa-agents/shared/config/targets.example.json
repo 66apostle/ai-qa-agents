@@ -1,0 +1,107 @@
+{
+  "description": "Target repositories for Phase 3 (test implementation) and Phase 3.5 (review). Each target gives the agent the repo root, where files go, how to run the result, and - in conventionDocs - which of that repo's own documents define its conventions. Those documents are the source of truth; the stackDoc in docs/stacks/ only maps the layout and points at them. Copy this file to config/targets.json, then set each target's `root` to an absolute path on your machine. The real file is gitignored because those paths are local and org-specific.",
+  "defaultTarget": "ui-playwright",
+  "targets": {
+    "ui-playwright": {
+      "label": "UI — Playwright (TypeScript)",
+      "status": "active",
+      "root": "/absolute/path/to/your-ui-test-repo",
+      "stackDoc": "docs/stacks/ui-playwright.md",
+      "language": "typescript",
+      "framework": "@playwright/test",
+      "layout": {
+        "pageObject": "pages/<feature>.page.ts",
+        "spec": "tests/<feature>.spec.ts",
+        "specNested": "tests/<area>/<feature>.spec.ts",
+        "sharedComponents": "pages/components/",
+        "data": "data/<feature>.data.ts",
+        "fixtures": "fixtures.ts",
+        "apiHelper": "utils/helpers/<feature>.ts",
+        "apiHelperIndex": "utils/helpers/index.ts",
+        "apiModule": "api/rest/<resource>.ts"
+      },
+      "aliases": {
+        "#pages/*": "./pages/*",
+        "#components/*": "./pages/components/*",
+        "#data/*": "./data/*",
+        "#api/*": "./api/*",
+        "#utils/*": "./utils/*",
+        "#fixtures": "./fixtures.ts"
+      },
+      "commands": {
+        "runSpec": "npx playwright test tests/<feature>.spec.ts",
+        "runHeaded": "npx playwright test tests/<feature>.spec.ts --headed",
+        "lintFix": "npm run lint:fix",
+        "formatFix": "npm run format:fix",
+        "typeCheck": "npm run type:check"
+      },
+      "authState": ".auth/user.json",
+      "selectorHelperCommand": "/find-selectors",
+      "notes": "TypeScript-native repo: specs, page objects, data and the api/utils layer are all .ts, imported without a file extension. The repo's own docs/ are the source of truth for conventions - the stackDoc only maps the layout and points at them.",
+      "conventionDocs": [
+        "CLAUDE.md",
+        "docs/ui-architecture.md",
+        "docs/naming.md",
+        "docs/assertions.md",
+        "docs/test-data.md",
+        "docs/review-checklist.md"
+      ],
+      "reviewChecklist": "docs/review-checklist.md"
+    },
+    "api-mocha": {
+      "label": "API — Mocha + Chai + superagent (JavaScript, ESM)",
+      "status": "active",
+      "root": "/absolute/path/to/your-api-test-repo",
+      "stackDoc": "docs/stacks/api-mocha.md",
+      "language": "javascript",
+      "framework": "mocha",
+      "areas": [
+        "external",
+        "mobile",
+        "rest",
+        "mxa",
+        "gamification"
+      ],
+      "layout": {
+        "spec": "tests/<area>/<resource>.spec.js",
+        "specNested": "tests/<area>/<resource>/<action>.spec.js",
+        "apiModule": "api/<area>/<resource>.js",
+        "helper": "utils/helpers/<area>/<resource>.js",
+        "helperIndex": "utils/helpers/<area>/index.js",
+        "data": "tests/data/<resource>.data.js"
+      },
+      "aliases": {
+        "#utils/*": "./utils/*",
+        "#api/*": "./api/*",
+        "#data/*": "./tests/data/*"
+      },
+      "commands": {
+        "runSpec": "npm run test -- ./tests/<area>/<resource>.spec.js",
+        "runArea": "npm run test:<area>",
+        "lintFix": "npm run lint:fix",
+        "formatFix": "npm run format:fix"
+      },
+      "endpointHelperCommand": "/find-endpoint",
+      "notes": "No WebdriverIO here. HTTP goes through utils/api-client.js only - never call superagent directly from a spec. The repo's own docs/ are the source of truth for conventions - the stackDoc only maps the layout and points at them.",
+      "conventionDocs": [
+        "CLAUDE.md",
+        "docs/test-design.md",
+        "docs/api-client-architecture.md",
+        "docs/naming.md",
+        "docs/assertions.md",
+        "docs/test-data.md",
+        "docs/review-checklist.md"
+      ],
+      "reviewChecklist": "docs/review-checklist.md"
+    },
+    "example-legacy": {
+      "label": "Example of a stack being retired",
+      "status": "legacy-read-only",
+      "root": "/absolute/path/to/your-ui-test-repo",
+      "layout": {
+        "spec": "legacy/tests/<feature>.spec.js"
+      },
+      "notes": "A `legacy-read-only` target is readable for reference but the implementer refuses to generate new tests for it — use this for a suite that is being ported away and deleted."
+    }
+  }
+}
